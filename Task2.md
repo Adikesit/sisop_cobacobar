@@ -106,15 +106,9 @@ sudo bash
 
 Seluruh proses pembuatan rootfs dilakukan sebagai root agar operasi `mknod`, `chown`, dan pengaturan permission berjalan tanpa hambatan.
 
-#### 2. Cek Lokasi BusyBox
-
-```bash
-whereis busybox
-```
-
 Di Garuda Linux (Arch-based), BusyBox biasanya berada di `/usr/bin/busybox`.
 
-#### 3. Buat Struktur Direktori Rootfs
+#### 2. Buat Struktur Direktori Rootfs
 
 ```bash
 mkdir -p myramdisk/{bin,dev,etc,proc,sys,tmp,vault,watch,log,root}
@@ -140,7 +134,7 @@ myramdisk/
     └── observer/ # Home observer
 ```
 
-#### 4. Salin File Device ke Direktori `dev`
+#### 3. Salin File Device ke Direktori `dev`
 
 ```bash
 cp -a /dev/null    myramdisk/dev
@@ -154,7 +148,7 @@ cp -a /dev/console myramdisk/dev
 - `/dev/zero` : sumber byte nol
 - `/dev/console` : konsol sistem utama.
 
-#### 5. Salin dan Install BusyBox
+#### 4. Salin dan Install BusyBox
 
 ```bash
 cp /usr/bin/busybox myramdisk/bin
@@ -166,7 +160,7 @@ cd ../..
 - `./busybox --install .` : membuat symlink untuk semua applet BusyBox (ls, cat, mount, login, getty, dll) ke dalam direktori `bin`
 - Satu binary BusyBox menggantikan puluhan perintah Unix standar.
 
-#### 6. Buat File `/log/NOTICE`
+#### 5. Buat File `/log/NOTICE`
 
 ```bash
 cat > myramdisk/log/NOTICE << 'EOF'
@@ -229,6 +223,9 @@ DIREKTORI TERBATAS:
 =======================================================
 EOF
 ```
+### Screenshoot
+<img width="1207" height="963" alt="image" src="https://github.com/user-attachments/assets/a29d0a61-200c-4f09-9e14-070646684bfd" />
+
 
 ---
 
