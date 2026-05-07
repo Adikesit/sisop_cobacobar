@@ -315,15 +315,23 @@ chmod +x myramdisk/init
 
 ---
 
+# Task 2 — SentinelOS (Poin C–F)
+
+> Dikerjakan di **Garuda Linux** (Arch-based). Semua perintah dijalankan dari dalam direktori `osboot/myramdisk` kecuali disebutkan lain.
+
+---
+
 ## C. Mengimplementasikan Sistem Multi-User dan Keamanan
 
 ### Deskripsi
 
-Pada poin C, diimplementasikan sistem autentikasi tiga user dengan password terenkripsi **MD5**. Setiap user memiliki akses terbatas ke direktori tertentu sesuai perannya.
+Pada poin C, diimplementasikan sistem autentikasi dengan **3 user** yang masing-masing dilindungi password terenkripsi **MD5**. Setiap user hanya dapat mengakses direktori yang sesuai dengan perannya. Password dienkripsi menggunakan `openssl` dan disimpan di `/etc/passwd`. Permission direktori diatur dengan `chmod` dan `chown`.
 
 ### Langkah-langkah & Potongan Kode
 
 #### 1. Generate Password Hash MD5
+
+Sebelum membuat file `passwd`, generate dulu hash MD5 untuk masing-masing password menggunakan `openssl`:
 
 ```bash
 openssl passwd -1 SkyLord
@@ -331,30 +339,43 @@ openssl passwd -1 Guard123
 openssl passwd -1 EyeOpen
 ```
 
-- `openssl passwd -1` : menghasilkan hash MD5 dengan format `$1$salt$hash`
-- Contoh output:
+- `openssl passwd -1` : menghasilkan hash MD5 dengan format `$1$<salt>$<hash>`
+- Salt di-generate secara acak setiap kali perintah dijalankan, sehingga hash-nya selalu berbeda meski password sama — namun tetap valid saat autentikasi
+
+Contoh output yang dihasilkan:
 
 ```
-root     : $1$tLdbnIuD$wWE8YP5l0yxKTyWNEXadu0
-guardian : $1$TKyBqwW0$z0IRW8tW4dc9tkbBqNU7U/
-observer : $1$8xKAwKIz$Q2vjKZFtzenad1g77avyc0
+$1$FzlIJjRw$XeFmThZduA3Y29deZuqvO/   ← root     (SkyLord)
+$1$0KzOU3M4$eafTS198W1JVhuC3NzAJ7.   ← guardian (Guard123)
+$1$42.IzUGG$rd02WVEd6rRGZxyGJI8Tz0   ← observer (EyeOpen)
 ```
 
-Salin masing-masing hasil hash untuk dimasukkan ke file `passwd` di langkah berikutnya.
+Salin masing-masing hash karena akan dipakai di langkah berikutnya.
 
 #### 2. Buat File `/etc/passwd`
 
 ```bash
 cat > myramdisk/etc/passwd << 'EOF'
-root:$1$tLdbnIuD$wWE8YP5l0yxKTyWNEXadu0:0:0:root:/root:/bin/sh
-guardian:$1$TKyBqwW0$z0IRW8tW4dc9tkbBqNU7U/:1000:1000:Guardian User:/home/guardian:/bin/sh
-observer:$1$8xKAwKIz$Q2vjKZFtzenad1g77avyc0:1001:1001:Observer User:/home/observer:/bin/sh
+root:$1$FzlIJjRw$XeFmThZduA3Y29deZuqvO/:0:0:root:/root:/bin/sh
+guardian:$1$0KzOU3M4$eafTS198W1JVhuC3NzAJ7.:1000:1000:Guardian User:/home/guardian:/bin/sh
+observer:$1$42.IzUGG$rd02WVEd6rRGZxyGJI8Tz0:1001:1001:Observer User:/home/observer:/bin/sh
 EOF
 ```
 
-> **Penting:** Ganti hash di atas dengan hasil generate `openssl passwd` dari langkah 1, karena salt-nya berbeda setiap kali dijalankan.
+> **Catatan:** Ganti hash di atas dengan hasil `openssl passwd` yang kamu jalankan sendiri, karena salt-nya berbeda setiap kali.
 
-Format field: `username:hash_password:UID:GID:komentar:home_dir:shell`
+Format setiap baris `/etc/passwd`:
+
+```
+username : hash_password : UID : GID : komentar : home_dir : shell
+```
+
+| Field | root | guardian | observer |
+|-------|------|----------|----------|
+| UID | 0 | 1000 | 1001 |
+| GID | 0 | 1000 | 1001 |
+| Home | `/root` | `/home/guardian` | `/home/observer` |
+| Shell | `/bin/sh` | `/bin/sh` | `/bin/sh` |
 
 #### 3. Buat File `/etc/group`
 
@@ -372,46 +393,55 @@ observer:x:1001:observer
 EOF
 ```
 
+- Group `tty` berisi ketiga user agar semua bisa mengakses terminal
+- Group `wheel` hanya untuk `root` dan `guardian` (privilege lebih tinggi)
+- `guardian` dan `observer` masuk group `users` sebagai grup umum.
+
 #### 4. Mengatur Permission Direktori sesuai Role
 
 ```bash
-# /vault -> root only (rwx------)
+# /vault -> hanya root (rwx------)
 chmod 700 myramdisk/vault
 chown 0:0 myramdisk/vault
 
-# /watch -> guardian only
+# /watch -> hanya guardian
 chmod 700 myramdisk/watch
 chown 1000:1000 myramdisk/watch
 
-# /home/guardian -> guardian only
+# /home/guardian -> hanya guardian
 chmod 700 myramdisk/home/guardian
 chown 1000:1000 myramdisk/home/guardian
 
-# /home/observer -> observer only
+# /home/observer -> hanya observer
 chmod 700 myramdisk/home/observer
 chown 1001:1001 myramdisk/home/observer
 
-# /root -> root only
+# /root -> hanya root
 chmod 700 myramdisk/root
 chown 0:0 myramdisk/root
 
-# /log -> semua bisa baca
+# /log -> semua user bisa baca
 chmod 755 myramdisk/log
 ```
 
-| Direktori | Owner | Permission | Akses |
-|-----------|-------|-----------|-------|
+- `chmod 700` berarti hanya owner yang bisa baca, tulis, dan masuk direktori tersebut (rwx------). User lain tidak bisa sama sekali
+- `chown UID:GID` mengatur kepemilikan direktori ke user yang sesuai.
+
+Ringkasan permission:
+
+| Direktori | Owner | Permission | Dapat Diakses Oleh |
+|-----------|-------|------------|-------------------|
 | `/vault` | root:root | `700` | root saja |
 | `/watch` | guardian:guardian | `700` | guardian saja |
 | `/home/guardian` | guardian:guardian | `700` | guardian saja |
 | `/home/observer` | observer:observer | `700` | observer saja |
 | `/root` | root:root | `700` | root saja |
-| `/log` | root:root | `755` | semua bisa baca |
+| `/log` | root:root | `755` | semua user |
 
 ### Kode Penuh
 
 ```bash
-# Generate hash (jalankan satu per satu, salin hasilnya)
+# Generate hash MD5 (jalankan satu per satu, salin hasilnya)
 openssl passwd -1 SkyLord
 openssl passwd -1 Guard123
 openssl passwd -1 EyeOpen
@@ -426,14 +456,17 @@ EOF
 # Buat /etc/group
 cat > myramdisk/etc/group << 'EOF'
 root:x:0:root
+bin:x:1:root
+sys:x:2:root
 tty:x:5:root,guardian,observer
+disk:x:6:root
 wheel:x:10:root,guardian
 users:x:100:guardian,observer
 guardian:x:1000:guardian
 observer:x:1001:observer
 EOF
 
-# Set permission
+# Set permission direktori
 chmod 700 myramdisk/vault
 chmod 700 myramdisk/watch
 chmod 700 myramdisk/home/guardian
@@ -454,7 +487,7 @@ chown 0:0    myramdisk/root
 
 ### Deskripsi
 
-Pada poin D, dibuat **init script** yang berjalan sebagai PID 1 saat kernel selesai loading. Init script me-mount filesystem virtual, membaca parameter `mode` dari kernel cmdline untuk menentukan warna prompt, lalu menjalankan `getty` untuk proses login. Kemudian initramfs dikemas dan diuji dengan QEMU.
+Pada poin D, dibuat **init script** sebagai program pertama yang dijalankan kernel (PID 1). Init script me-mount filesystem virtual yang dibutuhkan sistem, membaca parameter `mode` dari kernel cmdline untuk menentukan warna prompt, menulis `/etc/profile` secara dinamis, lalu menjalankan `getty` sebagai login prompt. Setelah itu, rootfs dikemas menjadi `initramfs` dan diuji dengan QEMU.
 
 ### Langkah-langkah & Potongan Kode
 
@@ -469,26 +502,45 @@ cat > myramdisk/init << 'EOF'
 
 /bin/hostname sentinelos
 
-# Baca mode dari kernel cmdline
+# Baca parameter mode dari kernel cmdline
 MODE=$(cat /proc/cmdline | tr ' ' '\n' | grep '^mode=' | cut -d= -f2)
 [ -z "$MODE" ] && MODE=1
 
+# Tentukan warna prompt berdasarkan mode
 case "$MODE" in
-    1) COLOR='\[\e[1;32m\]'; HOST_COLOR='\[\e[1;34m\]'; LABEL="DEFAULT" ;;
-    2) COLOR='\[\e[1;33m\]'; HOST_COLOR='\[\e[1;36m\]'; LABEL="WATCH"   ;;
-    3) COLOR='\[\e[1;31m\]'; HOST_COLOR='\[\e[1;35m\]'; LABEL="SECURE"  ;;
-    *) COLOR='\[\e[1;32m\]'; HOST_COLOR='\[\e[1;34m\]'; LABEL="DEFAULT" ;;
+    1)
+        USER_CLR='\[\e[1;32m\]'
+        HOST_CLR='\[\e[1;34m\]'
+        LABEL="DEFAULT"
+        ;;
+    2)
+        USER_CLR='\[\e[1;33m\]'
+        HOST_CLR='\[\e[1;36m\]'
+        LABEL="WATCH"
+        ;;
+    3)
+        USER_CLR='\[\e[1;31m\]'
+        HOST_CLR='\[\e[1;35m\]'
+        LABEL="SECURE"
+        ;;
+    *)
+        USER_CLR='\[\e[1;32m\]'
+        HOST_CLR='\[\e[1;34m\]'
+        LABEL="DEFAULT"
+        ;;
 esac
 
+# Tulis /etc/profile secara dinamis sesuai mode
 cat > /etc/profile << PROFILE
 export PATH=/bin:/sbin
 export TERM=linux
 export SENTINELOSMODE="${LABEL}"
-PS1='${COLOR}[\u${HOST_COLOR}@\h\[\e[0m\] \W${COLOR}]\[\e[0m\]\$ '
+PS1='${USER_CLR}[\u${HOST_CLR}@\h\[\e[0m\] \W${USER_CLR}]\[\e[0m\]\$ '
 export PS1
 [ -f /log/NOTICE ] && cat /log/NOTICE
 PROFILE
 
+# Jalankan login prompt di tty1
 while true; do
     /bin/getty -L tty1 115200 vt100
     sleep 1
@@ -496,23 +548,27 @@ done
 EOF
 ```
 
-Penjelasan isi init script:
+Penjelasan setiap bagian:
 
-- `mount -t proc none /proc` : mount procfs agar `/proc/cmdline` dan perintah seperti `ps` bisa berjalan
-- `mount -t sysfs none /sys` : mount sysfs untuk interaksi dengan kernel
-- `mount -t devtmpfs none /dev` : mount devtmpfs agar device nodes tersedia secara dinamis
+- `mount -t proc none /proc` : mount procfs, wajib ada agar `/proc/cmdline` bisa dibaca dan perintah seperti `ps` berjalan
+- `mount -t sysfs none /sys` : mount sysfs untuk komunikasi kernel-userspace
+- `mount -t devtmpfs none /dev` : mount devtmpfs agar device nodes tersedia otomatis tanpa perlu mknod manual
 - `hostname sentinelos` : set hostname sistem
-- Blok `case "$MODE"` : menentukan kode warna ANSI berdasarkan parameter `mode=` dari kernel cmdline
-- `/etc/profile` : ditulis secara dinamis sehingga warna prompt sesuai mode yang dipilih saat boot
-- `/bin/getty -L tty1 115200 vt100` : menjalankan login prompt di terminal tty1
+- `cat /proc/cmdline | tr ' ' '\n' | grep '^mode=' | cut -d= -f2` : mengambil nilai `mode` dari parameter kernel, misalnya jika boot dengan `-append "mode=2"` maka `MODE=2`
+- Blok `case "$MODE"` : menentukan kode warna ANSI dan label sesuai mode
+- `/etc/profile` ditulis dinamis setiap boot sehingga warna prompt selalu sesuai mode
+- `while true; do /bin/getty ... done` : loop agar getty selalu restart jika user logout, sehingga login prompt selalu muncul kembali
 
 Kode warna ANSI yang digunakan:
 
-| Mode | Label | Warna prompt | Kode ANSI |
-|------|-------|-------------|-----------|
-| 1 | DEFAULT | Hijau | `\e[1;32m` |
-| 2 | WATCH | Kuning | `\e[1;33m` |
-| 3 | SECURE | Merah | `\e[1;31m` |
+| Kode ANSI | Warna | Dipakai di Mode |
+|-----------|-------|----------------|
+| `\e[1;32m` | Hijau terang | 1 (user) |
+| `\e[1;34m` | Biru terang | 1 (host) |
+| `\e[1;33m` | Kuning terang | 2 (user) |
+| `\e[1;36m` | Cyan terang | 2 (host) |
+| `\e[1;31m` | Merah terang | 3 (user) |
+| `\e[1;35m` | Magenta terang | 3 (host) |
 
 #### 2. Berikan Izin Eksekusi pada File `init`
 
@@ -520,47 +576,9 @@ Kode warna ANSI yang digunakan:
 chmod +x myramdisk/init
 ```
 
-Kernel Linux mengharuskan file `/init` bisa dieksekusi, jika tidak kernel akan panic.
+Kernel Linux **wajib** menemukan file `/init` yang executable. Jika tidak, kernel akan panic saat booting.
 
-#### 3. Salin Script `sysinfo` ke `/bin`
-
-```bash
-cat > myramdisk/bin/sysinfo << 'EOF'
-#!/bin/sh
-CYAN='\033[1;36m'
-GREEN='\033[1;32m'
-WHITE='\033[1;37m'
-RESET='\033[0m'
-SEP="${CYAN}=================================================${RESET}"
-
-SYS_HOSTNAME=$(hostname 2>/dev/null || echo "unknown")
-SYS_DATE=$(date "+%A, %d %B %Y %H:%M:%S")
-SYS_UPTIME=$(uptime | sed 's/.*up /up /' | cut -d',' -f1-2)
-SYS_USER=$(whoami)
-SYS_HOME="$HOME"
-SYS_PROCS=$(ps | wc -l)
-SYS_PROCS=$((SYS_PROCS - 1))
-SYS_MEM=$(free | awk '/^Mem:/{printf "Total: %dK | Used: %dK | Free: %dK",$2,$3,$4}')
-
-echo ""
-printf "${SEP}\n"
-printf "  ${WHITE}SentinelOS - System Information${RESET}\n"
-printf "${SEP}\n"
-printf "  ${GREEN}%-18s${RESET}: %s\n" "Hostname"       "$SYS_HOSTNAME"
-printf "  ${GREEN}%-18s${RESET}: %s\n" "Date & Time"    "$SYS_DATE"
-printf "  ${GREEN}%-18s${RESET}: %s\n" "Uptime"         "$SYS_UPTIME"
-printf "  ${GREEN}%-18s${RESET}: %s\n" "Current User"   "$SYS_USER"
-printf "  ${GREEN}%-18s${RESET}: %s\n" "Home Directory" "$SYS_HOME"
-printf "  ${GREEN}%-18s${RESET}: %s\n" "Running Procs"  "$SYS_PROCS processes"
-printf "  ${GREEN}%-18s${RESET}: %s\n" "Memory"         "$SYS_MEM"
-printf "${SEP}\n"
-echo ""
-EOF
-
-chmod 755 myramdisk/bin/sysinfo
-```
-
-#### 4. Buat Initramfs
+#### 3. Buat Initramfs
 
 ```bash
 cd myramdisk
@@ -568,15 +586,14 @@ find . | cpio -oHnewc | gzip > ../myramdisk.gz
 cd ..
 ```
 
-- `find .` : mencantumkan semua file di dalam `myramdisk/`
-- `cpio -oHnewc` : membuat arsip CPIO format `newc` (satu-satunya format yang dikenali kernel Linux untuk initramfs)
-- `gzip` : kompresi output
-- Hasilnya `myramdisk.gz` di direktori `osboot/`.
+- `find .` : mencantumkan semua file dan direktori di dalam `myramdisk/`
+- `cpio -oHnewc` : membuat arsip CPIO dengan format `newc` — satu-satunya format yang dikenali kernel Linux untuk initramfs
+- `gzip` : mengompresi arsip sehingga lebih kecil dan cepat dimuat ke memori
+- Output: file `myramdisk.gz` di direktori `osboot/`
 
-#### 5. Uji Boot dengan QEMU (Mode 1)
+#### 4. Jalankan QEMU untuk Test Boot
 
 ```bash
-cd osboot
 qemu-system-x86_64 \
   -smp 2 \
   -m 256 \
@@ -589,26 +606,33 @@ qemu-system-x86_64 \
 
 | Opsi | Fungsi |
 |------|--------|
-| `-smp 2` | 2 vCPU virtual |
+| `-smp 2` | 2 virtual CPU |
 | `-m 256` | RAM 256 MB |
-| `-display curses` | Output teks di terminal (tanpa GUI) |
-| `-vga std` | VGA standar 80x25 |
-| `-kernel bzImage` | Kernel yang digunakan |
-| `-initrd myramdisk.gz` | Root filesystem yang dimuat |
-| `-append "mode=1"` | Parameter yang di-pass ke kernel (untuk warna prompt) |
+| `-display curses` | Output teks di terminal, tanpa jendela GUI |
+| `-vga std` | VGA standar resolusi 80x25 |
+| `-kernel bzImage` | File kernel yang digunakan |
+| `-initrd myramdisk.gz` | File initramfs yang dimuat |
+| `-append "mode=1"` | Parameter kernel — dibaca oleh `/init` untuk menentukan warna prompt |
 
-Jika berhasil, akan muncul prompt login:
+Jika boot berhasil, akan muncul:
+
 ```
 sentinelos login:
 ```
-Login dengan `root` dan password `SkyLord`.
+
+Login dengan:
+- User: `root` → password: `SkyLord`
+- User: `guardian` → password: `Guard123`
+- User: `observer` → password: `EyeOpen`
 
 Untuk keluar dari QEMU: tekan **Ctrl+A** lalu **X**.
 
-Untuk mengulangi boot:
+Untuk mengulang boot:
+
 ```bash
 pkill -f qemu
-# lalu jalankan kembali perintah qemu di atas
+qemu-system-x86_64 -smp 2 -m 256 -display curses -vga std \
+  -kernel bzImage -initrd myramdisk.gz -append "mode=1"
 ```
 
 ### Kode Penuh
@@ -626,16 +650,17 @@ MODE=$(cat /proc/cmdline | tr ' ' '\n' | grep '^mode=' | cut -d= -f2)
 [ -z "$MODE" ] && MODE=1
 
 case "$MODE" in
-    1) COLOR='\[\e[1;32m\]'; HOST_COLOR='\[\e[1;34m\]'; LABEL="DEFAULT" ;;
-    2) COLOR='\[\e[1;33m\]'; HOST_COLOR='\[\e[1;36m\]'; LABEL="WATCH"   ;;
-    3) COLOR='\[\e[1;31m\]'; HOST_COLOR='\[\e[1;35m\]'; LABEL="SECURE"  ;;
-    *) COLOR='\[\e[1;32m\]'; HOST_COLOR='\[\e[1;34m\]'; LABEL="DEFAULT" ;;
+    1) USER_CLR='\[\e[1;32m\]'; HOST_CLR='\[\e[1;34m\]'; LABEL="DEFAULT" ;;
+    2) USER_CLR='\[\e[1;33m\]'; HOST_CLR='\[\e[1;36m\]'; LABEL="WATCH"   ;;
+    3) USER_CLR='\[\e[1;31m\]'; HOST_CLR='\[\e[1;35m\]'; LABEL="SECURE"  ;;
+    *) USER_CLR='\[\e[1;32m\]'; HOST_CLR='\[\e[1;34m\]'; LABEL="DEFAULT" ;;
 esac
 
 cat > /etc/profile << PROFILE
 export PATH=/bin:/sbin
 export TERM=linux
-PS1='${COLOR}[\u${HOST_COLOR}@\h\[\e[0m\] \W${COLOR}]\[\e[0m\]\$ '
+export SENTINELOSMODE="${LABEL}"
+PS1='${USER_CLR}[\u${HOST_CLR}@\h\[\e[0m\] \W${USER_CLR}]\[\e[0m\]\$ '
 export PS1
 [ -f /log/NOTICE ] && cat /log/NOTICE
 PROFILE
@@ -646,9 +671,10 @@ while true; do
 done
 EOF
 
+# Beri izin eksekusi
 chmod +x myramdisk/init
 
-# Pack menjadi initramfs
+# Pack jadi initramfs
 cd myramdisk
 find . | cpio -oHnewc | gzip > ../myramdisk.gz
 cd ..
@@ -669,7 +695,7 @@ qemu-system-x86_64 \
 
 ### Deskripsi
 
-Pada poin E, SentinelOS dikemas menjadi **ISO bootable** menggunakan GRUB sebagai bootloader. GRUB dikonfigurasi dengan **3 menu** yang masing-masing melewatkan parameter `mode` berbeda ke kernel.
+Pada poin E, SentinelOS dikemas menjadi **ISO bootable** menggunakan GRUB sebagai bootloader. GRUB dikonfigurasi dengan **3 menu** yang masing-masing melewatkan nilai `mode` berbeda ke kernel. Nilai ini dibaca oleh `/init` untuk mengubah warna prompt secara otomatis sesuai pilihan user di menu GRUB.
 
 ### Langkah-langkah & Potongan Kode
 
@@ -680,6 +706,7 @@ mkdir -p mylinuxiso/boot/grub
 ```
 
 Struktur yang terbentuk:
+
 ```
 mylinuxiso/
 └── boot/
@@ -689,10 +716,10 @@ mylinuxiso/
         └── grub.cfg
 ```
 
-#### 2. Salin Kernel dan Initramfs ke Direktori ISO
+#### 2. Salin Kernel dan Initramfs
 
 ```bash
-cp bzImage    mylinuxiso/boot/
+cp bzImage      mylinuxiso/boot/
 cp myramdisk.gz mylinuxiso/boot/
 ```
 
@@ -723,40 +750,78 @@ menuentry "SentinelOS - Mode 3 (Secure - Merah & Magenta)" {
 EOF
 ```
 
-- `set timeout=5` : GRUB menunggu 5 detik sebelum boot otomatis ke pilihan default
-- `set default=0` : Mode 1 dipilih secara default (indeks mulai dari 0)
-- Setiap `menuentry` mem-pass parameter `mode=X` yang berbeda ke kernel
-- Parameter ini dibaca oleh `/init` melalui `/proc/cmdline` untuk menentukan warna prompt.
+Penjelasan konfigurasi:
 
-Alur warna berdasarkan pilihan menu:
+- `set timeout=5` : GRUB menunggu 5 detik sebelum otomatis memilih menu default
+- `set default=0` : menu pertama (Mode 1) dipilih secara default jika user tidak memilih
+- `linux /boot/bzImage mode=1 quiet` : memuat kernel dengan parameter `mode=1` yang akan dibaca `/init`
+- `initrd /boot/myramdisk.gz` : memuat root filesystem ke memori
+- `quiet` : menyembunyikan pesan kernel saat booting
 
-| Menu | Parameter Kernel | Warna Prompt |
-|------|-----------------|-------------|
-| Mode 1 | `mode=1` | Hijau & Biru |
-| Mode 2 | `mode=2` | Kuning & Cyan |
-| Mode 3 | `mode=3` | Merah & Magenta |
+Alur warna berdasarkan pilihan menu GRUB:
 
-#### 4. Buat ISO Bootable dengan grub-mkrescue
+```
+GRUB Menu
+├── Pilih Mode 1  →  kernel param: mode=1  →  /init baca MODE=1  →  prompt Hijau & Biru
+├── Pilih Mode 2  →  kernel param: mode=2  →  /init baca MODE=2  →  prompt Kuning & Cyan
+└── Pilih Mode 3  →  kernel param: mode=3  →  /init baca MODE=3  →  prompt Merah & Magenta
+```
+
+| Mode | Parameter | Warna User | Warna Host |
+|------|-----------|------------|------------|
+| 1 | `mode=1` | Hijau (`\e[1;32m`) | Biru (`\e[1;34m`) |
+| 2 | `mode=2` | Kuning (`\e[1;33m`) | Cyan (`\e[1;36m`) |
+| 3 | `mode=3` | Merah (`\e[1;31m`) | Magenta (`\e[1;35m`) |
+
+#### 4. Buat ISO dengan grub-mkrescue
 
 ```bash
 grub-mkrescue -o mylinux.iso mylinuxiso
 ```
 
-- `grub-mkrescue` : tool resmi GRUB untuk membuat ISO bootable lengkap dengan bootloader untuk BIOS dan UEFI
+- `grub-mkrescue` : tool resmi GRUB untuk membuat ISO bootable dengan bootloader lengkap (BIOS & UEFI)
 - `-o mylinux.iso` : nama file ISO output
-- `mylinuxiso` : direktori sumber yang berisi boot files.
+- `mylinuxiso` : folder sumber yang berisi semua file boot
+
+#### 5. Uji ISO dengan QEMU
+
+```bash
+qemu-system-x86_64 \
+  -smp 2 \
+  -m 256 \
+  -display curses \
+  -vga std \
+  -cdrom mylinux.iso
+```
+
+- `-cdrom mylinux.iso` : menggantikan opsi `-kernel` dan `-initrd`, sistem di-boot dari ISO layaknya CD fisik
+- GRUB menu akan muncul, pilih salah satu mode
+- Setelah memilih, kernel dan initramfs dimuat, lalu muncul login prompt.
+
+Untuk mengulang:
+
+```bash
+pkill -f qemu
+qemu-system-x86_64 -smp 2 -m 256 -display curses -vga std -cdrom mylinux.iso
+```
 
 ### Kode Penuh
 
 ```bash
+# Buat struktur ISO
 mkdir -p mylinuxiso/boot/grub
 
+# Copy file kernel dan initramfs
 cp bzImage      mylinuxiso/boot/
 cp myramdisk.gz mylinuxiso/boot/
 
+# Buat grub.cfg
 cat > mylinuxiso/boot/grub/grub.cfg << 'EOF'
 set timeout=5
 set default=0
+
+set color_normal=white/black
+set color_highlight=black/white
 
 menuentry "SentinelOS - Mode 1 (Default - Hijau & Biru)" {
     linux  /boot/bzImage mode=1 quiet
@@ -774,7 +839,15 @@ menuentry "SentinelOS - Mode 3 (Secure - Merah & Magenta)" {
 }
 EOF
 
+# Buat ISO
 grub-mkrescue -o mylinux.iso mylinuxiso
+
+# Test dengan QEMU
+qemu-system-x86_64 \
+  -smp 2 -m 256 \
+  -display curses \
+  -vga std \
+  -cdrom mylinux.iso
 ```
 
 ---
@@ -783,11 +856,11 @@ grub-mkrescue -o mylinux.iso mylinuxiso
 
 ### Deskripsi
 
-Pada poin F, dibuat script `/bin/sysinfo` yang dapat dijalankan oleh **semua user** dari direktori manapun. Script ini menampilkan informasi sistem secara terformat dan berwarna.
+Pada poin F, dibuat script `/bin/sysinfo` yang bisa dijalankan oleh **semua user** tanpa argumen dari direktori manapun. Script menampilkan 7 informasi sistem secara terformat dengan warna menggunakan kode ANSI.
 
 ### Langkah-langkah & Potongan Kode
 
-#### 1. Definisi Warna Output
+#### 1. Definisi Warna
 
 ```sh
 CYAN='\033[1;36m'
@@ -796,52 +869,87 @@ WHITE='\033[1;37m'
 RESET='\033[0m'
 ```
 
-Kode warna ANSI menggunakan format `\033[STYLE;COLORm`. `printf` digunakan (bukan `echo`) karena BusyBox `echo` tidak selalu mendukung escape sequence di semua shell.
+- Format kode warna ANSI: `\033[STYLE;COLORm` — `\033` adalah karakter ESC, `1` berarti terang/bold, angka warna 30-37 untuk teks
+- `printf` digunakan karena lebih konsisten memproses escape sequence di BusyBox `sh` dibanding `echo`
+- `RESET` digunakan untuk mengembalikan warna ke default setelah mencetak teks berwarna.
 
 #### 2. Mengumpulkan Informasi Sistem
 
 ```sh
-SYS_HOSTNAME=$(hostname)
-SYS_DATE=$(date "+%A, %d %B %Y %H:%M:%S")
-SYS_UPTIME=$(uptime | sed 's/.*up /up /' | cut -d',' -f1-2)
-SYS_USER=$(whoami)
+# Hostname sistem
+SYS_HOSTNAME=$(hostname 2>/dev/null || echo "unknown")
+
+# Tanggal dan waktu saat ini
+SYS_DATE=$(date "+%A, %d %B %Y %H:%M:%S" 2>/dev/null || echo "unknown")
+
+# Uptime sistem
+SYS_UPTIME=$(uptime 2>/dev/null | sed 's/.*up /up /' | cut -d',' -f1-2 || echo "unknown")
+
+# User yang sedang login
+SYS_USER=$(whoami 2>/dev/null || echo "unknown")
+
+# Direktori home user aktif
 SYS_HOME="$HOME"
-SYS_PROCS=$(ps | wc -l)
+
+# Jumlah proses yang berjalan
+SYS_PROCS=$(ps 2>/dev/null | wc -l || echo "1")
 SYS_PROCS=$((SYS_PROCS - 1))
-SYS_MEM=$(free | awk '/^Mem:/{printf "Total: %dK | Used: %dK | Free: %dK",$2,$3,$4}')
+
+# Sisa memori tersedia
+SYS_MEM=$(free 2>/dev/null | awk '/^Mem:/{printf "Total: %dK | Used: %dK | Free: %dK",$2,$3,$4}' || echo "unknown")
 ```
 
-- `ps | wc -l` : hitung jumlah baris output `ps`, dikurangi 1 untuk header
-- `awk '/^Mem:/'` : filter hanya baris memory dari output `free`
-- Semua perintah sudah tersedia di BusyBox.
+Penjelasan tiap baris:
+
+- `2>/dev/null || echo "unknown"` : jika perintah gagal, tampilkan "unknown" sebagai fallback
+- `uptime | sed 's/.*up /up /' | cut -d',' -f1-2` : mengambil hanya durasi uptime dari output lengkap `uptime`, contoh: `up 5 minutes`
+- `ps | wc -l` : menghitung jumlah baris output `ps` lalu dikurangi 1 untuk menghilangkan baris header
+- `free | awk '/^Mem:/{...}'` : memfilter hanya baris `Mem:` dari output `free` dan memformat nilainya
 
 #### 3. Menampilkan Output Terformat
 
 ```sh
-printf "  ${GREEN}%-18s${RESET}: %s\n" "Hostname" "$SYS_HOSTNAME"
+SEP="${CYAN}=================================================${RESET}"
+
+echo ""
+printf "${SEP}\n"
+printf "  ${WHITE}SentinelOS - System Information${RESET}\n"
+printf "${SEP}\n"
+printf "  ${GREEN}%-18s${RESET}: %s\n" "Hostname"       "$SYS_HOSTNAME"
+printf "  ${GREEN}%-18s${RESET}: %s\n" "Date & Time"    "$SYS_DATE"
+printf "  ${GREEN}%-18s${RESET}: %s\n" "Uptime"         "$SYS_UPTIME"
+printf "  ${GREEN}%-18s${RESET}: %s\n" "Current User"   "$SYS_USER"
+printf "  ${GREEN}%-18s${RESET}: %s\n" "Home Directory" "$SYS_HOME"
+printf "  ${GREEN}%-18s${RESET}: %s\n" "Running Procs"  "$SYS_PROCS processes"
+printf "  ${GREEN}%-18s${RESET}: %s\n" "Memory"         "$SYS_MEM"
+printf "${SEP}\n"
+echo ""
 ```
 
-- `%-18s` : rata kiri dengan lebar 18 karakter untuk alignment yang rapi
-- Setiap baris info dicetak dengan label berwarna hijau dan nilai berwarna default.
+- `%-18s` : format string rata kiri dengan lebar 18 karakter, membuat kolom label tampil rapi sejajar
+- `${GREEN}...${RESET}` : label dicetak berwarna hijau, lalu warna di-reset agar nilai tetap berwarna default
 
-#### 4. Pemasangan ke Rootfs dan Permission
-
-Script ini sudah ditulis langsung ke `myramdisk/bin/sysinfo` pada langkah D (bagian pembuatan initramfs). Permission diset dengan:
+#### 4. Tulis Script ke Rootfs dan Set Permission
 
 ```bash
+cat > myramdisk/bin/sysinfo << 'EOF'
+#!/bin/sh
+... (isi script lengkap)
+EOF
+
 chmod 755 myramdisk/bin/sysinfo
 ```
 
-- `chmod 755` : owner bisa baca/tulis/eksekusi, group dan other bisa baca/eksekusi
-- Karena `/bin` ada di `$PATH`, script langsung bisa dipanggil dengan `sysinfo` dari direktori manapun.
+- Lokasi `/bin/sysinfo` memastikan script ada di `$PATH` sehingga bisa dipanggil langsung dengan `sysinfo` dari direktori manapun
+- `chmod 755` berarti: owner (root) bisa baca/tulis/eksekusi, group dan other hanya bisa baca/eksekusi — sesuai kebutuhan agar semua user bisa menjalankannya
 
-Setelah login ke SentinelOS via QEMU atau ISO, jalankan:
+Setelah login ke SentinelOS (via QEMU atau ISO), jalankan:
 
 ```sh
 sysinfo
 ```
 
-Contoh output:
+Contoh output saat dijalankan sebagai user `guardian`:
 
 ```
 =================================================
@@ -852,7 +960,7 @@ Contoh output:
   Uptime            : up 3 minutes
   Current User      : guardian
   Home Directory    : /home/guardian
-  Running Procs     : 12 processes
+  Running Procs     : 8 processes
   Memory            : Total: 262144K | Used: 18432K | Free: 243712K
 =================================================
 ```
@@ -866,6 +974,7 @@ CYAN='\033[1;36m'
 GREEN='\033[1;32m'
 WHITE='\033[1;37m'
 RESET='\033[0m'
+
 SEP="${CYAN}=================================================${RESET}"
 
 SYS_HOSTNAME=$(hostname 2>/dev/null || echo "unknown")
@@ -873,7 +982,7 @@ SYS_DATE=$(date "+%A, %d %B %Y %H:%M:%S" 2>/dev/null || echo "unknown")
 SYS_UPTIME=$(uptime 2>/dev/null | sed 's/.*up /up /' | cut -d',' -f1-2 || echo "unknown")
 SYS_USER=$(whoami 2>/dev/null || echo "unknown")
 SYS_HOME="$HOME"
-SYS_PROCS=$(ps 2>/dev/null | wc -l || echo "0")
+SYS_PROCS=$(ps 2>/dev/null | wc -l || echo "1")
 SYS_PROCS=$((SYS_PROCS - 1))
 SYS_MEM=$(free 2>/dev/null | awk '/^Mem:/{printf "Total: %dK | Used: %dK | Free: %dK",$2,$3,$4}' || echo "unknown")
 
@@ -897,78 +1006,42 @@ chmod 755 myramdisk/bin/sysinfo
 
 ---
 
-## Emulasi Menjalankan File ISO
+## Struktur Akhir Folder `osboot`
 
-Setelah ISO berhasil dibuat, uji dengan QEMU:
+Setelah semua poin C–F selesai, struktur folder `osboot` akan terlihat seperti ini:
 
-```bash
-qemu-system-x86_64 \
-  -smp 2 \
-  -m 256 \
-  -display curses \
-  -vga std \
-  -cdrom mylinux.iso
 ```
-
-- `-cdrom mylinux.iso` : menggantikan `-kernel` dan `-initrd`, sistem di-boot dari ISO
-- GRUB menu akan muncul dengan 3 pilihan mode
-- Setelah memilih, kernel dan initramfs dimuat, lalu muncul prompt login.
-
-Untuk menjalankan ulang:
-```bash
-pkill -f qemu
-qemu-system-x86_64 -smp 2 -m 256 -display curses -vga std -cdrom mylinux.iso
-```
-
----
-
-## Rangkuman Perintah Lengkap (Cheatsheet)
-
-```bash
-# ===== PREREQUISITE (Garuda Linux) =====
-sudo pacman -S base-devel bc bison flex ncurses openssl elfutils \
-               qemu-system-x86 grub xorriso mtools busybox tmux
-
-# ===== A: KERNEL =====
-mkdir -p osboot && cd osboot
-wget https://cdn.kernel.org/pub/linux/kernel/v6.x/linux-6.1.1.tar.xz
-tar -xvf linux-6.1.1.tar.xz && cd linux-6.1.1
-make tinyconfig && make menuconfig   # aktifkan opsi sesuai tabel
-make -j$(nproc)
-cp arch/x86/boot/bzImage .. && cd ..
-
-# ===== B: ROOTFS =====
-sudo bash
-mkdir -p myramdisk/{bin,dev,etc,proc,sys,tmp,vault,watch,log,root}
-mkdir -p myramdisk/home/{guardian,observer}
-cp -a /dev/null /dev/tty* /dev/zero /dev/console myramdisk/dev/
-cp /usr/bin/busybox myramdisk/bin
-cd myramdisk/bin && ./busybox --install . && cd ../..
-# buat /log/NOTICE (isi terserah)
-
-# ===== C: MULTI-USER =====
-openssl passwd -1 SkyLord    # salin hasilnya
-openssl passwd -1 Guard123   # salin hasilnya
-openssl passwd -1 EyeOpen    # salin hasilnya
-# buat myramdisk/etc/passwd dan /etc/group dengan hash di atas
-chmod 700 myramdisk/{vault,watch,home/guardian,home/observer,root}
-chown 0:0 myramdisk/vault myramdisk/root
-chown 1000:1000 myramdisk/watch myramdisk/home/guardian
-chown 1001:1001 myramdisk/home/observer
-
-# ===== D: INIT + QEMU =====
-# buat myramdisk/init (lihat kode penuh di atas)
-chmod +x myramdisk/init
-# buat myramdisk/bin/sysinfo (lihat kode penuh di atas)
-chmod 755 myramdisk/bin/sysinfo
-cd myramdisk && find . | cpio -oHnewc | gzip > ../myramdisk.gz && cd ..
-qemu-system-x86_64 -smp 2 -m 256 -display curses -vga std \
-  -kernel bzImage -initrd myramdisk.gz -append "mode=1"
-
-# ===== E: ISO =====
-mkdir -p mylinuxiso/boot/grub
-cp bzImage myramdisk.gz mylinuxiso/boot/
-# buat mylinuxiso/boot/grub/grub.cfg (lihat kode penuh di atas)
-grub-mkrescue -o mylinux.iso mylinuxiso
-qemu-system-x86_64 -smp 2 -m 256 -display curses -vga std -cdrom mylinux.iso
+osboot/
+├── bzImage                    ← hasil Task A
+├── myramdisk.gz               ← hasil Task D (pack initramfs)
+├── mylinux.iso                ← hasil Task E
+├── linux-6.1.1/               ← source kernel
+└── myramdisk/                 ← rootfs (Task B–F)
+    ├── init                   ← Task D (PID 1)
+    ├── bin/
+    │   ├── busybox
+    │   ├── sh → busybox
+    │   ├── getty → busybox
+    │   ├── login → busybox
+    │   ├── sysinfo            ← Task F
+    │   └── ... (applet lainnya)
+    ├── dev/
+    │   ├── null
+    │   ├── tty*
+    │   ├── zero
+    │   └── console
+    ├── etc/
+    │   ├── passwd             ← Task C
+    │   └── group              ← Task C
+    ├── proc/
+    ├── sys/
+    ├── tmp/
+    ├── vault/                 ← chmod 700, owner root       (Task C)
+    ├── watch/                 ← chmod 700, owner guardian   (Task C)
+    ├── log/
+    │   └── NOTICE             ← Task B
+    ├── root/                  ← chmod 700, owner root       (Task C)
+    └── home/
+        ├── guardian/          ← chmod 700, owner guardian   (Task C)
+        └── observer/          ← chmod 700, owner observer   (Task C)
 ```
