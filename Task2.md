@@ -336,23 +336,13 @@ openssl passwd -1 EyeOpen
 - `openssl passwd -1` : menghasilkan hash MD5 dengan format `$1$<salt>$<hash>`
 - Salt di-generate secara acak setiap kali perintah dijalankan, sehingga hash-nya selalu berbeda meski password sama — namun tetap valid saat autentikasi
 
-Contoh output yang dihasilkan:
-
-```
-$1$FzlIJjRw$XeFmThZduA3Y29deZuqvO/   ← root     (SkyLord)
-$1$0KzOU3M4$eafTS198W1JVhuC3NzAJ7.   ← guardian (Guard123)
-$1$42.IzUGG$rd02WVEd6rRGZxyGJI8Tz0   ← observer (EyeOpen)
-```
-
-Salin masing-masing hash karena akan dipakai di langkah berikutnya.
-
 #### 2. Buat File `/etc/passwd`
 
 ```bash
 cat > myramdisk/etc/passwd << 'EOF'
-root:$1$FzlIJjRw$XeFmThZduA3Y29deZuqvO/:0:0:root:/root:/bin/sh
-guardian:$1$0KzOU3M4$eafTS198W1JVhuC3NzAJ7.:1000:1000:Guardian User:/home/guardian:/bin/sh
-observer:$1$42.IzUGG$rd02WVEd6rRGZxyGJI8Tz0:1001:1001:Observer User:/home/observer:/bin/sh
+root:$1$/C.1cnJa$.SRkwopmH1fMXFaj0VQ9n0:0:0:root:/root:/bin/sh
+guardian:$1$tHWp7bLy$3e5VCucLS6/3DytS9wzmh/:1000:1000:Guardian User:/home/guardian:/bin/sh
+observer:$1$wygrdZ5P$oHyIfsvYmP3zngADjmAN90:1001:1001:Observer User:/home/observer:/bin/sh
 EOF
 ```
 
@@ -431,6 +421,13 @@ Ringkasan permission:
 | `/home/observer` | observer:observer | `700` | observer saja |
 | `/root` | root:root | `700` | root saja |
 | `/log` | root:root | `755` | semua user |
+
+### Screenshot
+<img width="661" height="211" alt="image" src="https://github.com/user-attachments/assets/9c4e9321-7f38-4235-b8c7-8041ee5e626f" />
+<img width="1249" height="171" alt="image" src="https://github.com/user-attachments/assets/74655624-2bb1-42d7-a163-f7f929354011" />
+<img width="1352" height="203" alt="image" src="https://github.com/user-attachments/assets/1c38b0d3-6837-40a7-93fa-cc1db94c173f" />
+
+
 
 ### Kode Penuh
 
