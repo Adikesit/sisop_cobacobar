@@ -61,6 +61,16 @@ cd ..
 - File `bzImage` hasil kompilasi ada di `arch/x86/boot/`
 - Di-copy ke direktori `osboot` untuk digunakan di langkah selanjutnya.
 
+### Screenshot
+<img width="1562" height="672" alt="image" src="https://github.com/user-attachments/assets/4ca0e177-35f3-4cc7-87cf-e41e1b230747" />
+<img width="1562" height="817" alt="image" src="https://github.com/user-attachments/assets/88cc45ca-df50-4b18-abde-f23fae81412b" />
+<img width="1562" height="817" alt="image" src="https://github.com/user-attachments/assets/34b56b7a-dc4f-4653-b4a8-cd325a83fbb9" />
+<img width="1562" height="542" alt="image" src="https://github.com/user-attachments/assets/2c64f547-5d28-4fad-9fdd-c202078062f2" />
+<img width="1081" height="814" alt="image" src="https://github.com/user-attachments/assets/11751d4a-4d31-4183-87f5-1dc76f087be0" />
+<img width="1207" height="700" alt="image" src="https://github.com/user-attachments/assets/f6ee5273-8298-4dd7-8386-a20ab4b65460" />
+
+
+
 ### Kode Penuh
 
 ```bash
