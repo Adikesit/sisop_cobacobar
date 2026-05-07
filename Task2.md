@@ -710,6 +710,10 @@ Untuk mengulang:
 pkill -f qemu
 qemu-system-x86_64 -smp 2 -m 256 -display curses -vga std -cdrom mylinux.iso
 ```
+### Screenshot
+<img width="1554" height="828" alt="image" src="https://github.com/user-attachments/assets/51d5a9c3-9f62-4724-be5b-a4228eb0bf09" />
+
+
 
 ### Kode Penuh
 
