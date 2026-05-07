@@ -1,30 +1,5 @@
 # Task 2 — SentinelOS
 
-## Deskripsi Sistem
-
-**SentinelOS** adalah sistem operasi sederhana berbasis Linux kernel 6.1.1 yang dibangun dari awal (*from scratch*). Sistem ini mendukung multi-user dengan sistem keamanan berbasis password terenkripsi MD5, prompt terminal berwarna berdasarkan mode boot, dan dapat dikemas sebagai ISO bootable dengan menu GRUB multi-mode.
-
-> **Catatan:** Seluruh pengerjaan dilakukan di **Garuda Linux** (Arch-based). Perintah instalasi paket menggunakan `pacman` dan `yay`.
-
----
-
-## Prerequisite
-
-Install semua dependensi yang dibutuhkan:
-
-```bash
-sudo pacman -Syu
-sudo pacman -S base-devel bc bison flex ncurses openssl elfutils \
-               qemu-system-x86 grub xorriso mtools busybox tmux
-```
-
-> Jika ada paket yang tidak ditemukan di repo resmi, gunakan AUR:
-> ```bash
-> yay -S grub xorriso mtools
-> ```
-
----
-
 ## A. Mempersiapkan Kernel Linux
 
 ### Deskripsi
@@ -64,31 +39,6 @@ make menuconfig
 - `make menuconfig` : membuka antarmuka TUI untuk mengaktifkan fitur-fitur yang dibutuhkan secara manual.
 
 Di dalam `menuconfig`, aktifkan opsi-opsi berikut:
-
-| Kategori | Opsi |
-|----------|------|
-| `64-bit kernel` | ✅ aktifkan |
-| `General Setup` → Configure standard kernel features | ✅ Enable support for printk |
-| `General Setup` → Configure standard kernel features | ✅ Enable futex support |
-| `General Setup` | ✅ Initial RAM filesystem and RAM disk (initramfs/initrd) support |
-| `General Setup` | ✅ Control Group Support |
-| `Enable the block layer` | ✅ Legacy autoloading support |
-| `Device Drivers` → Character devices | ✅ Enable TTY |
-| `Device Drivers` → Character devices | ✅ Virtio console |
-| `Device Drivers` → Character devices | ✅ /dev/mem virtual device support |
-| `Device Drivers` → Network device support | ✅ Virtio Network Driver |
-| `Device Drivers` → Block Devices | ✅ Virtio block driver |
-| `Device Drivers` → Block Devices | ✅ loopback device support |
-| `Device Drivers` → Block Devices | ✅ RAM block device support |
-| `Device Drivers` → Virtio drivers | ✅ aktifkan |
-| `Device Drivers` → Generic Driver Options | ✅ Maintain a devtmpfs filesystem |
-| `Device Drivers` → Generic Driver Options | ✅ Automount devtmpfs at /dev |
-| `Executable file formats` | ✅ Kernel Support for ELF binaries |
-| `Executable file formats` | ✅ Kernel Support for scripts starting with #! |
-| `File Systems` → Pseudo File Systems | ✅ /proc file system support |
-| `File Systems` → Pseudo File Systems | ✅ sysfs file system support |
-| `Networking Support` → Networking options | ✅ Unix domain sockets |
-| `Networking Support` → Networking options | ✅ TCP/IP Networking |
 
 Setelah selesai konfigurasi, simpan dan keluar dari menuconfig.
 
