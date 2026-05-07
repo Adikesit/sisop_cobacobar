@@ -315,12 +315,6 @@ chmod +x myramdisk/init
 
 ---
 
-# Task 2 — SentinelOS (Poin C–F)
-
-> Dikerjakan di **Garuda Linux** (Arch-based). Semua perintah dijalankan dari dalam direktori `osboot/myramdisk` kecuali disebutkan lain.
-
----
-
 ## C. Mengimplementasikan Sistem Multi-User dan Keamanan
 
 ### Deskripsi
