@@ -186,12 +186,55 @@ EOF
 
 File ini akan ditampilkan otomatis ke setiap user saat login melalui `/etc/profile`.
 
+#### 6. Setup Script /init
+Script ini yang pertama kali jalan. Tugasnya sekarang: mount sistem file, baca mode warna, dan panggil getty supaya kita bisa login.
+
+```bash
+cat > myramdisk/init << 'EOF'
+#!/bin/sh
+# 1. Mount sistem file virtual
+/bin/mount -t proc none /proc
+/bin/mount -t sysfs none /sys
+/bin/mount -t devtmpfs none /dev
+
+# 2. Set Hostname
+/bin/hostname sentinelos
+
+# 3. Baca mode warna dari kernel command line (GRUB)
+MODE=$(cat /proc/cmdline | tr ' ' '\n' | grep '^mode=' | cut -d= -f2)
+[ -z "$MODE" ] && MODE=1
+
+case "$MODE" in
+    1) COLOR='\[\e[1;32m\]'; HOST_COLOR='\[\e[1;34m\]'; LABEL="DEFAULT" ;;
+    2) COLOR='\[\e[1;33m\]'; HOST_COLOR='\[\e[1;36m\]'; LABEL="WATCH"   ;;
+    3) COLOR='\[\e[1;31m\]'; HOST_COLOR='\[\e[1;35m\]'; LABEL="SECURE"  ;;
+esac
+
+# 4. Buat /etc/profile secara dinamis (Supaya NOTICE muncul tiap LOGIN)
+cat > /etc/profile << PROFILE
+export PATH=/bin:/sbin
+export TERM=linux
+export SENTINELOSMODE="${LABEL}"
+PS1='${COLOR}[\u${HOST_COLOR}@\h\[\e[0m\] \W${COLOR}]\[\e[0m\]\$ '
+export PS1
+# Tampilkan file NOTICE setiap kali user login
+[ -f /log/NOTICE ] && cat /log/NOTICE
+PROFILE
+
+# 5. Jalankan prompt login selamanya
+while true; do
+    /bin/getty -L tty1 115200 vt100
+    sleep 1
+done
+EOF
+
+chmod +x myramdisk/init
+```
+
 ### Kode Penuh
 
 ```bash
 sudo bash
-
-whereis busybox
 
 mkdir -p myramdisk/{bin,dev,etc,proc,sys,tmp,vault,watch,log,root}
 mkdir -p myramdisk/home/{guardian,observer}
@@ -213,15 +256,58 @@ cat > myramdisk/log/NOTICE << 'EOF'
 
 PEMBERITAHUAN KEAMANAN:
   Akses ke sistem ini hanya diperbolehkan untuk
-  pengguna yang berwenang.
+  pengguna yang berwenang. Seluruh aktivitas dicatat
+  dan dipantau oleh administrator sistem.
 
 DIREKTORI TERBATAS:
   /vault  - Hanya dapat diakses oleh root
   /watch  - Hanya dapat diakses oleh guardian
+  /home   - Setiap user hanya dapat mengakses home-nya
 
+Hubungi administrator jika ada masalah.
                      -- SentinelOS Security Team
 =======================================================
 EOF
+
+cat > myramdisk/init << 'EOF'
+#!/bin/sh
+# 1. Mount sistem file virtual
+/bin/mount -t proc none /proc
+/bin/mount -t sysfs none /sys
+/bin/mount -t devtmpfs none /dev
+
+# 2. Set Hostname
+/bin/hostname sentinelos
+
+# 3. Baca mode warna dari kernel command line (GRUB)
+MODE=$(cat /proc/cmdline | tr ' ' '\n' | grep '^mode=' | cut -d= -f2)
+[ -z "$MODE" ] && MODE=1
+
+case "$MODE" in
+    1) COLOR='\[\e[1;32m\]'; HOST_COLOR='\[\e[1;34m\]'; LABEL="DEFAULT" ;;
+    2) COLOR='\[\e[1;33m\]'; HOST_COLOR='\[\e[1;36m\]'; LABEL="WATCH"   ;;
+    3) COLOR='\[\e[1;31m\]'; HOST_COLOR='\[\e[1;35m\]'; LABEL="SECURE"  ;;
+esac
+
+# 4. Buat /etc/profile secara dinamis (Supaya NOTICE muncul tiap LOGIN)
+cat > /etc/profile << PROFILE
+export PATH=/bin:/sbin
+export TERM=linux
+export SENTINELOSMODE="${LABEL}"
+PS1='${COLOR}[\u${HOST_COLOR}@\h\[\e[0m\] \W${COLOR}]\[\e[0m\]\$ '
+export PS1
+# Tampilkan file NOTICE setiap kali user login
+[ -f /log/NOTICE ] && cat /log/NOTICE
+PROFILE
+
+# 5. Jalankan prompt login selamanya
+while true; do
+    /bin/getty -L tty1 115200 vt100
+    sleep 1
+done
+EOF
+
+chmod +x myramdisk/init
 ```
 ### Screenshoot
 <img width="1207" height="963" alt="image" src="https://github.com/user-attachments/assets/a29d0a61-200c-4f09-9e14-070646684bfd" />
