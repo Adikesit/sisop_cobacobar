@@ -774,88 +774,43 @@ Pada poin F, dibuat script `/bin/sysinfo` yang bisa dijalankan oleh **semua user
 
 ### Langkah-langkah & Potongan Kode
 
-#### 1. Definisi Warna
-
+#### 1. Buat file sysinfo di dalam folder bin:
 ```sh
-CYAN='\033[1;36m'
-GREEN='\033[1;32m'
-WHITE='\033[1;37m'
-RESET='\033[0m'
+nano bin/sysinfo
 ```
 
-- Format kode warna ANSI: `\033[STYLE;COLORm` — `\033` adalah karakter ESC, `1` berarti terang/bold, angka warna 30-37 untuk teks
-- `printf` digunakan karena lebih konsisten memproses escape sequence di BusyBox `sh` dibanding `echo`
-- `RESET` digunakan untuk mengembalikan warna ke default setelah mencetak teks berwarna.
-
-#### 2. Mengumpulkan Informasi Sistem
+#### 2. Menulis script
 
 ```sh
-# Hostname sistem
-SYS_HOSTNAME=$(hostname 2>/dev/null || echo "unknown")
-
-# Tanggal dan waktu saat ini
-SYS_DATE=$(date "+%A, %d %B %Y %H:%M:%S" 2>/dev/null || echo "unknown")
-
-# Uptime sistem
-SYS_UPTIME=$(uptime 2>/dev/null | sed 's/.*up /up /' | cut -d',' -f1-2 || echo "unknown")
-
-# User yang sedang login
-SYS_USER=$(whoami 2>/dev/null || echo "unknown")
-
-# Direktori home user aktif
-SYS_HOME="$HOME"
-
-# Jumlah proses yang berjalan
-SYS_PROCS=$(ps 2>/dev/null | wc -l || echo "1")
-SYS_PROCS=$((SYS_PROCS - 1))
-
-# Sisa memori tersedia
-SYS_MEM=$(free 2>/dev/null | awk '/^Mem:/{printf "Total: %dK | Used: %dK | Free: %dK",$2,$3,$4}' || echo "unknown")
-```
-
-Penjelasan tiap baris:
-
-- `2>/dev/null || echo "unknown"` : jika perintah gagal, tampilkan "unknown" sebagai fallback
-- `uptime | sed 's/.*up /up /' | cut -d',' -f1-2` : mengambil hanya durasi uptime dari output lengkap `uptime`, contoh: `up 5 minutes`
-- `ps | wc -l` : menghitung jumlah baris output `ps` lalu dikurangi 1 untuk menghilangkan baris header
-- `free | awk '/^Mem:/{...}'` : memfilter hanya baris `Mem:` dari output `free` dan memformat nilainya
-
-#### 3. Menampilkan Output Terformat
-
-```sh
-SEP="${CYAN}=================================================${RESET}"
-
-echo ""
-printf "${SEP}\n"
-printf "  ${WHITE}SentinelOS - System Information${RESET}\n"
-printf "${SEP}\n"
-printf "  ${GREEN}%-18s${RESET}: %s\n" "Hostname"       "$SYS_HOSTNAME"
-printf "  ${GREEN}%-18s${RESET}: %s\n" "Date & Time"    "$SYS_DATE"
-printf "  ${GREEN}%-18s${RESET}: %s\n" "Uptime"         "$SYS_UPTIME"
-printf "  ${GREEN}%-18s${RESET}: %s\n" "Current User"   "$SYS_USER"
-printf "  ${GREEN}%-18s${RESET}: %s\n" "Home Directory" "$SYS_HOME"
-printf "  ${GREEN}%-18s${RESET}: %s\n" "Running Procs"  "$SYS_PROCS processes"
-printf "  ${GREEN}%-18s${RESET}: %s\n" "Memory"         "$SYS_MEM"
-printf "${SEP}\n"
-echo ""
-```
-
-- `%-18s` : format string rata kiri dengan lebar 18 karakter, membuat kolom label tampil rapi sejajar
-- `${GREEN}...${RESET}` : label dicetak berwarna hijau, lalu warna di-reset agar nilai tetap berwarna default
-
-#### 4. Tulis Script ke Rootfs dan Set Permission
-
-```bash
-cat > myramdisk/bin/sysinfo << 'EOF'
 #!/bin/sh
-... (isi script lengkap)
-EOF
 
-chmod 755 myramdisk/bin/sysinfo
+echo "=========================================="
+echo "          SENTINELOS SYSTEM INFO          "
+echo "=========================================="
+echo "Hostname       : $(hostname)"
+echo "Current Time   : $(date)"
+echo "Uptime         : $(uptime | awk -F, '{print $1}')"
+echo "Current User   : $(whoami)"
+echo "Home Directory : $HOME"
+echo "Running Procs  : $(ps | wc -l)"
+echo "Free Memory    : $(free -h | grep Mem | awk '{print $4}')"
+echo "=========================================="
+```
+#### 3. Kasih izin eksekusi:
+```sh
+chmod +x bin/sysinfo
 ```
 
-- Lokasi `/bin/sysinfo` memastikan script ada di `$PATH` sehingga bisa dipanggil langsung dengan `sysinfo` dari direktori manapun
-- `chmod 755` berarti: owner (root) bisa baca/tulis/eksekusi, group dan other hanya bisa baca/eksekusi — sesuai kebutuhan agar semua user bisa menjalankannya
+#### 4. Membungkus ulang ramdisk-nya (Balik jadi file .gz):
+```sh
+find . | cpio -o -H newc | gzip > ../myramdisk.gz
+```
+
+#### 5. Finishing :
+```sh
+cp myramdisk.gz mylinuxiso/boot/
+grub-mkrescue -o sentinelos.iso mylinuxiso
+```
 
 Setelah login ke SentinelOS (via QEMU atau ISO), jalankan:
 
@@ -863,59 +818,37 @@ Setelah login ke SentinelOS (via QEMU atau ISO), jalankan:
 sysinfo
 ```
 
-Contoh output saat dijalankan sebagai user `guardian`:
+### Screenshot
+<img width="1550" height="913" alt="image" src="https://github.com/user-attachments/assets/870fd4f0-7b7b-4458-a72a-f7ca9e50d882" />
 
-```
-=================================================
-  SentinelOS - System Information
-=================================================
-  Hostname          : sentinelos
-  Date & Time       : Wednesday, 16 April 2025 14:32:07
-  Uptime            : up 3 minutes
-  Current User      : guardian
-  Home Directory    : /home/guardian
-  Running Procs     : 8 processes
-  Memory            : Total: 262144K | Used: 18432K | Free: 243712K
-=================================================
-```
 
 ### Kode Penuh
 
 ```bash
-cat > myramdisk/bin/sysinfo << 'EOF'
+nano bin/sysinfo
+
 #!/bin/sh
-CYAN='\033[1;36m'
-GREEN='\033[1;32m'
-WHITE='\033[1;37m'
-RESET='\033[0m'
 
-SEP="${CYAN}=================================================${RESET}"
+echo "=========================================="
+echo "          SENTINELOS SYSTEM INFO          "
+echo "=========================================="
+echo "Hostname       : $(hostname)"
+echo "Current Time   : $(date)"
+echo "Uptime         : $(uptime | awk -F, '{print $1}')"
+echo "Current User   : $(whoami)"
+echo "Home Directory : $HOME"
+echo "Running Procs  : $(ps | wc -l)"
+echo "Free Memory    : $(free -h | grep Mem | awk '{print $4}')"
+echo "=========================================="
 
-SYS_HOSTNAME=$(hostname 2>/dev/null || echo "unknown")
-SYS_DATE=$(date "+%A, %d %B %Y %H:%M:%S" 2>/dev/null || echo "unknown")
-SYS_UPTIME=$(uptime 2>/dev/null | sed 's/.*up /up /' | cut -d',' -f1-2 || echo "unknown")
-SYS_USER=$(whoami 2>/dev/null || echo "unknown")
-SYS_HOME="$HOME"
-SYS_PROCS=$(ps 2>/dev/null | wc -l || echo "1")
-SYS_PROCS=$((SYS_PROCS - 1))
-SYS_MEM=$(free 2>/dev/null | awk '/^Mem:/{printf "Total: %dK | Used: %dK | Free: %dK",$2,$3,$4}' || echo "unknown")
+chmod +x bin/sysinfo
 
-echo ""
-printf "${SEP}\n"
-printf "  ${WHITE}SentinelOS - System Information${RESET}\n"
-printf "${SEP}\n"
-printf "  ${GREEN}%-18s${RESET}: %s\n" "Hostname"       "$SYS_HOSTNAME"
-printf "  ${GREEN}%-18s${RESET}: %s\n" "Date & Time"    "$SYS_DATE"
-printf "  ${GREEN}%-18s${RESET}: %s\n" "Uptime"         "$SYS_UPTIME"
-printf "  ${GREEN}%-18s${RESET}: %s\n" "Current User"   "$SYS_USER"
-printf "  ${GREEN}%-18s${RESET}: %s\n" "Home Directory" "$SYS_HOME"
-printf "  ${GREEN}%-18s${RESET}: %s\n" "Running Procs"  "$SYS_PROCS processes"
-printf "  ${GREEN}%-18s${RESET}: %s\n" "Memory"         "$SYS_MEM"
-printf "${SEP}\n"
-echo ""
-EOF
+find . | cpio -o -H newc | gzip > ../myramdisk.gz
 
-chmod 755 myramdisk/bin/sysinfo
+cp myramdisk.gz mylinuxiso/boot/
+grub-mkrescue -o sentinelos.iso mylinuxiso
+
+sysinfo
 ```
 
 ---
