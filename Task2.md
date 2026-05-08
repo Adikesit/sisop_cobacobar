@@ -541,6 +541,10 @@ qemu-system-x86_64 -smp 2 -m 256 -display curses -vga std \
   -kernel bzImage -initrd myramdisk.gz -append "mode=1"
 ```
 
+### Screenshot
+<img width="1552" height="905" alt="image" src="https://github.com/user-attachments/assets/f18c9ad6-7586-4d9a-89fb-61e41f015044" />
+
+
 ### Kode Penuh
 
 ```bash
